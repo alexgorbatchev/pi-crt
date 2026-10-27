@@ -186,19 +186,18 @@ func render(ctx context.Context, src, dest string, cut Cut, audio bool, opts Opt
 	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin", "-ss", number(cut.Start), "-t", number(d), "-i", src}
 	// A finite silence source also covers silent source videos and short audio tracks.
 	args = append(args, "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono")
-	crop := ""
-	if r := cut.Crop; r != nil {
-		crop = fmt.Sprintf("crop=%d:%d:%d:%d:exact=1,", r.Width, r.Height, r.X, r.Y)
+	picture := pictureFilter(cut, rate)
+	opening, err := leadingBlack(ctx, src, cut, picture)
+	if err != nil {
+		return err
 	}
-	video := fmt.Sprintf("[0:v:0]setpts=PTS-STARTPTS,%sscale=320:240:force_original_aspect_ratio=increase:force_divisible_by=2:reset_sar=1,crop=320:240:x=(iw-ow)/2:y=(ih-oh)/2,setsar=1,fps=%s,format=yuv420p,noise=c0s=%d:c0f=t+u[v];", crop, rate, opts.Noise)
+	video := fmt.Sprintf("[0:v:0]setpts=PTS-STARTPTS,%s,noise=c0s=%d:c0f=t+u[picture];", picture, opts.Noise)
 	a := "[1:a]"
 	if audio {
 		a = "[0:a:0]"
 	}
-	audioFilter := fmt.Sprintf("%sasetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=mono,apad,atrim=duration=%s,dynaudnorm=p=0.7:m=5:s=5,afade=t=in:d=0.02,afade=t=out:st=%s:d=0.03[a];", a, number(d), number(d-0.03))
-	// Coarse noise remains visible at 240 lines; the fade spans multiple PAL frames.
-	static := fmt.Sprintf("color=c=gray:s=80x60:r=%s:d=0.4,format=yuv420p,noise=c0s=100:c0f=t+u,scale=320:240:flags=neighbor,fade=t=out:st=0.3:d=0.1[sv];anoisesrc=r=48000:d=0.4:a=0.06,afade=t=out:st=0.3:d=0.1,aformat=channel_layouts=mono[sa];", rate)
-	graph := video + audioFilter + static + "[sv][sa][v][a]concat=n=2:v=1:a=1[outv][outa]"
+	audioFilter := fmt.Sprintf("%sasetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=mono,apad,atrim=duration=%s,dynaudnorm=p=0.7:m=5:s=5,afade=t=in:d=0.02,afade=t=out:st=%s:d=0.03,adelay=%s:all=1[a];", a, number(d), number(d-0.03), number(staticPrefix*1000))
+	graph := video + audioFilter + tapeEffects(d, opening, rate)
 	args = append(args, "-filter_complex", graph, "-map", "[outv]", "-map", "[outa]", "-c:v", "libx264", "-profile:v", "baseline", "-level:v", "3.0", "-preset", "fast", "-crf", "23", "-maxrate", "2M", "-bufsize", "4M", "-pix_fmt", "yuv420p", "-r", rate, "-g", "30", "-c:a", "aac", "-b:a", "96k", "-ar", "48000", "-ac", "1", "-movflags", "+faststart", "-map_metadata", "-1", dest)
 	return run(ctx, opts.Log, "ffmpeg", args...)
 }

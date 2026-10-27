@@ -3,7 +3,7 @@ Offline Halloween ambiance for a Raspberry Pi 1 and a composite CRT: prepare cli
 # What It Does
 
 - Cuts local videos or downloadable URLs into named snippets.
-- Renders analog static between clips, subtle reception noise, and normalized audio.
+- Renders analog static between clips, subtle reception noise, intermittent VHS tracking bands, and normalized audio.
 - Plays every eligible clip once per round, with recent-history exclusion across rounds and a preference for changing source groups.
 - Provides a Pi 1 ARMv6 binary and Raspberry Pi OS Lite installation, read-only configuration, and verification scripts.
 
@@ -88,21 +88,27 @@ remain unchanged.
 
 | Effect | When it appears | Processing |
 | --- | --- | --- |
-| Light picture noise | Throughout the retained trailer footage | Animated, uniform luma noise; default `--noise 4`, range 0–30. `--noise 0` disables this layer without removing the static burst. |
-| Blocky monochrome static | First 0.4 seconds of every prepared clip, including the first clip played | Strong animated noise generated at 80×60 and enlarged to 320×240 with nearest-neighbor scaling, producing 4×4 blocks. The final 100 ms fade toward black. |
-| Quiet noise audio | During the 0.4-second static burst | Generated noise at amplitude 0.06, fading out over the final 100 ms. |
+| Light picture noise | Throughout the retained trailer footage | Animated, uniform luma noise; default `--noise 4`, range 0–30. `--noise 0` disables this layer without removing static or VHS tracking bands. |
+| Blocky monochrome static | First 0.4 seconds of every prepared clip, extended over any leading near-black source frames | The same seeded, animated noise field starts every clip: 80×60 enlarged to 320×240 with nearest-neighbor scaling produces 4×4 blocks. Static dissolves directly into the first picture over 200 ms; it does not fade to black. |
+| Quiet noise audio | During static and its dissolve | Generated noise at amplitude 0.06, fading out over the 200 ms dissolve while trailer audio plays on its original timeline. |
+| VHS tracking bands | Intermittent bursts during trailer footage | Bright, noisy horizontal bands six output pixels high, jumping vertically between frames. Bursts last 320 ms every 5.3 seconds starting at retained-trailer time 1.4 seconds, plus 180 ms every 8.7 seconds starting at 3.1 seconds. Unequal periods vary the gaps; these are tape artifacts, not CRT scanlines. |
 | Audio leveling | Throughout the retained trailer audio | Dynamic normalization with target peak 0.7, maximum gain 5, and soft compression factor 5. Audio is converted to 48 kHz mono; missing or short audio is padded with silence. |
 | Audio fades | Beginning and end of the retained trailer audio | 20 ms fade-in and 30 ms fade-out. |
 | CRT display simulation | During desktop playback with `just preview` or `just preview run` | CRT-Royale simulates scanlines, phosphor structure, and bloom in mpv. `just preview plain` omits this shader while retaining every baked-in effect. |
 
 Preparation also applies each cut's optional source crop, scales proportionally
 to cover 320×240, center-crops to fill 4:3, and converts to 30000/1001 fps (NTSC)
-or 25 fps (PAL). Original source downloads remain unchanged. The trailer image
-has no added video fade, color grading, screen curvature, grid, phosphor mask,
+or 25 fps (PAL). Static overlays the initial near-black run detected in the fitted
+picture (at least 98% of pixels below 2% of the luma range), then dissolves away.
+This changes effect timing only: retained source ranges, audio synchronization,
+and the 0.4-second addition to clip duration remain unchanged. Later black scenes
+are preserved. An entirely near-black cut stays covered with static.
+Original source downloads remain unchanged. Apart from the opening dissolve,
+the trailer image has no added video fade, color grading, screen curvature, grid, phosphor mask,
 or scanlines. Physical CRT display characteristics are left to the display;
 the CRT shader is for desktop preview only and never enters the prepared files
 or the default Pi playback path. Reception noise and static simulate signal
-interference separately from those display characteristics.
+interference and VHS bands simulate signal and tape damage separately from those display characteristics.
 
 # Reprocessing Original Sources
 

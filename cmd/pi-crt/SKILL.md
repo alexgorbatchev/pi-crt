@@ -4,7 +4,7 @@ description: Use when operating the pi-crt CLI.
 author: Alex Gorbatchev
 metadata:
   created_on: 2026-10-26 22:51
-  last_modified: 2026-10-27 10:39
+  last_modified: 2026-10-27 10:55
   status: current
 ---
 
@@ -75,12 +75,19 @@ before downloading again. An abrupt kill may leave .download-* scratch in source
 Publicly accessible sources require no credentials; downloader failures are errors.
 Prepared files are 320x240 progressive H.264 baseline level 3.0, yuv420p, mono AAC 48 kHz,
 cropped to fill 4:3, with dynamic audio normalization, optional luma noise, and 0.4
-seconds of static at the beginning. NTSC is 30000/1001 fps; PAL is 25 fps.
+seconds added at the beginning for static. NTSC is 30000/1001 fps; PAL is 25 fps.
 Static uses an 80x60 animated monochrome noise field enlarged to 320x240 with
 nearest-neighbor scaling, producing coarse 4x4 blocks.
-It fades toward black over its final 100 ms, accompanied by quiet noise audio fading
-over its final 100 ms. Trailer audio has soft compression and 20 ms fade-in /
-30 ms fade-out. `--noise 0` disables trailer luma noise, not the static prefix.
+Every clip starts with the same seeded static. It covers any leading near-black
+source frames (98% of fitted pixels below 2% of the luma range), then dissolves
+directly into the picture over 200 ms, accompanied by quiet noise audio fading
+over those 200 ms. This overlay does not trim source ranges, change the 0.4-second
+duration addition, or cover later black scenes. Entirely near-black cuts remain
+covered by static. Trailer audio stays synchronized, with soft compression and
+20 ms fade-in / 30 ms fade-out. Six-pixel-high noisy VHS tracking bands jump
+vertically during 320 ms bursts every 5.3 seconds starting at trailer time 1.4,
+plus 180 ms bursts every 8.7 seconds starting at 3.1. `--noise 0` disables trailer
+luma noise, not static or tracking bands.
 Effects are rendered during preparation; Pi playback adds none by default.
 CRT display simulation is restricted to desktop preview shaders.
 Encoded resolution does not select the physical composite signal mode.
