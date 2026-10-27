@@ -19,6 +19,8 @@ var techCatalog = cobrahelptree.TechCatalog{
 		Metadata: map[string]string{"writes": "OUTPUT and temporary sibling directory", "network": "HTTP(S) sources only"},
 	},
 	"pi-crt media check":  {Args: []cobrahelptree.ArgSpec{{Name: "LIBRARY", Description: "Prepared media directory"}}},
+	"pi-crt media edit":   {Args: []cobrahelptree.ArgSpec{{Name: "MANIFEST", Description: "JSON clip manifest"}, {Name: "CLIP", Description: "Clip ID"}}, Metadata: map[string]string{"writes": "CLIP-proj.llc beside the local source; existing projects preserved", "network": "none"}},
+	"pi-crt media trim":   {Args: []cobrahelptree.ArgSpec{{Name: "MANIFEST", Description: "JSON clip manifest to update"}, {Name: "CLIP", Description: "Clip ID"}, {Name: "CSV", Description: "LosslessCut CSV (seconds), one retained segment"}}, Metadata: map[string]string{"writes": "atomic replacement of MANIFEST", "network": "none"}},
 	"pi-crt player order": {Args: []cobrahelptree.ArgSpec{{Name: "LIBRARY", Description: "Prepared media directory"}}},
 	"pi-crt player run":   {Args: []cobrahelptree.ArgSpec{{Name: "LIBRARY", Description: "Prepared media directory"}}, Metadata: map[string]string{"state": "RAM only; VLC profile paths controlled by environment", "network": "loopback VLC HTTP"}},
 }

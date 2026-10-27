@@ -35,7 +35,7 @@ func newRootCommand() *cobra.Command {
 		}
 		return json.NewEncoder(cmd.OutOrStdout()).Encode(lib)
 	}}
-	m.AddCommand(prepare, check)
+	m.AddCommand(prepare, check, newEditCommand(), newTrimCommand())
 	p := &cobra.Command{Use: "player", Short: "Play clips or preview their randomized order", Args: cobra.NoArgs, RunE: groupHelp}
 	playOpts := player.Options{}
 	run := &cobra.Command{Use: "run LIBRARY", Short: "Run one persistent VLC process until interrupted", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {

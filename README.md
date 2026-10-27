@@ -142,12 +142,75 @@ round without a window or audio using `just preview test`. `just --list
 `order`, and `play`. `just play` runs the actual VLC-controlled player and
 requires `cvlc` on PATH; on macOS pass `--vlc /Applications/VLC.app/Contents/MacOS/VLC`.
 
+# Non-destructive Trimming
+
+Use [LosslessCut](https://github.com/mifi/lossless-cut) to choose the retained
+portion of each trailer. The editor works from the original source. Its project
+and CSV contain timestamps; applying them updates the manifest without modifying
+the downloads or existing Pi files. Preparation encodes the selected range into
+a new library, with the existing crop, static transition, and audio processing.
+
+1. Install the editor once:
+
+   ```sh
+   just edit setup
+   ```
+
+   On macOS this installs LosslessCut through Homebrew. On other systems install
+   LosslessCut yourself and put its executable on PATH.
+2. Open a trailer by manifest ID:
+
+   ```sh
+   just edit run psycho-1960
+   ```
+
+   This creates a native `psycho-1960-proj.llc` beside the downloaded source,
+   initialized with the manifest's current range. Existing projects are preserved
+   when reopened. The default manifest is `examples/horror-trailers.json`; pass
+   another manifest as the last argument. Editing requires a local source and
+   FFprobe, without downloads.
+3. Seek to the first frame to retain and press `I`; seek to the end and press
+   `O`. Space plays/pauses. Keep one segment spanning the desired trailer,
+   excluding the intro and outro. Export the **project segments as CSV (seconds)**
+   to `bin/edits/psycho-1960.csv`. This workflow uses the timestamp CSV rather
+   than LosslessCut's video export button. Its keyframe export limitations do
+   not affect the project's normal re-encoded preparation.
+4. Apply the decision to the manifest:
+
+   ```sh
+   just edit apply psycho-1960 bin/edits/psycho-1960.csv
+   git diff -- examples/horror-trailers.json
+   ```
+
+   CSV has one headerless `start,end,label` row in source seconds; for example,
+   `8.25,370.5,Retained trailer`. Labels and extra tag columns are ignored.
+   Empty start means zero; empty end is a marker and is rejected. Multiple rows,
+   timecode-formatted exports, nonfinite or negative times, ranges under 0.5
+   seconds, and ends beyond the source duration are rejected. Failed imports
+   preserve the manifest. Successful imports atomically replace it while retaining
+   permissions, IDs, groups, sources, crops, and other clips; symlinks are refused.
+5. Repeat for other trailers, then render and preview a new library:
+
+   ```sh
+   just prepare examples/horror-trailers.json library-trimmed
+   just preview run library-trimmed
+   ```
+
+   Use an output directory that does not already exist. Trim timestamps are
+   relative to the original source, without the prepared clip's 0.4-second static
+   prefix. `git diff` shows each decision, and editing the timestamps again lets
+   you restore footage. Saved editor projects are independent of the manifest;
+   to restart from changed manifest values, rename the old `.llc` project before
+   reopening. No intro/outro boundaries are selected automatically.
+
 # Options & Flags
 
 | Command | Options |
 | --- | --- |
 | `media prepare MANIFEST OUTPUT` | `--standard ntsc` or `pal`; `--noise 4` (0–30) |
 | `media check LIBRARY` | Metadata/file validation; does not decode every frame |
+| `media edit MANIFEST CLIP` | Create/reopen native LosslessCut project; prints its path |
+| `media trim MANIFEST CLIP CSV` | Import one retained range from CSV (seconds); atomically updates MANIFEST |
 | `player order LIBRARY` | `--count 20`, `--recent 5` |
 | `player run LIBRARY` | `--vlc cvlc`, `--port 42121`, `--recent 5`, `--count 0` (forever), repeatable `--vlc-arg` |
 | `skill` | Embedded full CLI usage guide, available offline |

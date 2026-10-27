@@ -1,0 +1,38 @@
+set working-directory := '..'
+set positional-arguments
+
+# Open a trailer in LosslessCut with its current retained range
+[default]
+run clip manifest='examples/horror-trailers.json':
+    #!/bin/sh
+    set -eu
+    mkdir -p bin/edits
+    just build
+    if [ "$(uname -s)" = Darwin ]; then
+        [ -d /Applications/LosslessCut.app ] || { echo 'Run just edit setup first.' >&2; exit 1; }
+        project=$(./bin/pi-crt media edit "$2" "$1")
+        open -a /Applications/LosslessCut.app "$project"
+    else
+        command -v LosslessCut >/dev/null 2>&1 || { echo 'Install LosslessCut and add it to PATH first.' >&2; exit 1; }
+        project=$(./bin/pi-crt media edit "$2" "$1")
+        exec LosslessCut "$project"
+    fi
+
+# Install the visual editor on macOS
+setup:
+    #!/bin/sh
+    set -eu
+    mkdir -p bin/edits
+    if [ -d /Applications/LosslessCut.app ]; then exit 0; fi
+    command -v brew >/dev/null 2>&1 || { echo 'Install LosslessCut from https://github.com/mifi/lossless-cut/releases first.' >&2; exit 1; }
+    brew install --cask losslesscut
+
+# Apply one retained segment from CSV (seconds), preserving original media
+apply clip csv manifest='examples/horror-trailers.json':
+    #!/bin/sh
+    set -eu
+    just build
+    ./bin/pi-crt media trim "$3" "$1" "$2"
+
+check:
+    just --justfile edit/justfile --fmt --check

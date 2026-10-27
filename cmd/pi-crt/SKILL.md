@@ -4,7 +4,7 @@ description: Use when operating the pi-crt CLI.
 author: Alex Gorbatchev
 metadata:
   created_on: 2026-10-26 22:51
-  last_modified: 2026-10-27 07:15
+  last_modified: 2026-10-27 09:20
   status: current
 ---
 
@@ -72,6 +72,32 @@ external-tool diagnostics go to stderr.
 | --- | --- | --- | --- | --- |
 | `--standard` | — | `string` | `ntsc` | Accept ntsc or pal. |
 | `--noise` | — | `int` | `4` | Luma noise strength, 0 through 30. |
+
+## `pi-crt media edit MANIFEST CLIP`
+
+Create a native LosslessCut v2 project for CLIP, identified by its manifest ID.
+Require a valid manifest, a local source file, and FFprobe. Resolve local sources
+relative to MANIFEST. Probe the source and reject cuts beyond its duration.
+Write `CLIP-proj.llc` beside the source with its current start/end range and
+source basename, then print the absolute project path. Preserve an existing
+regular project byte-for-byte; reject nonregular projects. Do not launch the
+editor, download, transcode, or modify videos. Open the resulting file in
+LosslessCut, mark the retained range, and export CSV (seconds).
+
+## `pi-crt media trim MANIFEST CLIP CSV`
+
+Apply one retained range from LosslessCut's CSV (seconds) export. No flags.
+Require one headerless `start,end[,label,...tags]` row. Times are source seconds;
+an empty start means zero. Ignore labels/tags. Reject markers (empty end),
+multiple segments, human-readable timecodes, invalid/nonfinite/negative times,
+ranges shorter than 0.5 seconds, unknown IDs, and ends beyond source duration
+(0.05s tolerance). Require FFprobe and a local source; no network access.
+
+Atomically replace MANIFEST in place, retaining its permissions, other clips,
+groups, sources, and crops. Refuse manifest symlinks. Print MANIFEST after
+success. The source video and prepared libraries remain untouched. Rebuild
+into a new output directory to apply the trim, then preview that library.
+Example: `pi-crt media trim examples/horror-trailers.json psycho-1960 cuts.csv`.
 
 ## `pi-crt media check LIBRARY`
 

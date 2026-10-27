@@ -1,6 +1,6 @@
 ---
 created_on: 2026-10-26 22:51
-last_modified: 2026-10-27 07:51
+last_modified: 2026-10-27 09:20
 status: current
 ---
 
@@ -20,6 +20,7 @@ Prepare clips on the Mac; run an offline composite-video appliance on a Pi 1 wit
 - `just prepare [MANIFEST OUTPUT]`, `just media-check [LIBRARY]`, `just order [LIBRARY ...FLAGS]`, `just play [LIBRARY ...FLAGS]`: build and invoke the corresponding CLI commands; preparation refuses existing output directories.
 - `just preview setup`: install missing mpv through Homebrew and cache the pinned, checksum-verified CRT-Royale shader; requires jq. Other systems must install mpv separately.
 - `just preview` / `just preview plain`: play a full shuffled round from `library/` with/without the CRT shader. Custom arguments: `just preview run LIBRARY COUNT RECENT ...MPV_FLAGS`; count 0 means one round. `just preview playlist` generates a local M3U8; `just preview test [LIBRARY]` decodes a complete round with real mpv and no display/audio.
+- `just edit setup`, `just edit run CLIP [MANIFEST]`, `just edit apply CLIP CSV [MANIFEST]`: install/open LosslessCut and import one retained range from CSV (seconds). Default manifest: `examples/horror-trailers.json`. Source-side `.llc` projects preserve editor state; ignored `bin/edits/` holds CSV exports.
 
 ## Setup and constraints
 
@@ -36,6 +37,7 @@ Prepare clips on the Mac; run an offline composite-video appliance on a Pi 1 wit
 - Keep source downloads and their YouTube provenance under ignored `sources/`. Check each download with FFprobe for 720-line video and an audio stream, then decode the complete file with FFmpeg to detect corruption.
 - Prepare Pi playback separately through `media prepare`: 640×480, square pixels, 4:3 filling the entire screen, H.264 Baseline level 3.0, maximum 2 Mbit/s video, mono AAC, and the library's NTSC/PAL frame rate. Preserve proportions by scaling to cover and center-cropping; never stretch or add letterboxing/pillarboxing. Source downloads are editing inputs, not Pi-ready playback files.
 - Remove baked-in borders with each cut's optional `crop` rectangle in source pixels before fitting to 4:3. Inspect representative bright scenes to choose the active picture; darkness in horror footage makes automatic black-border detection unreliable. Validate crops against source dimensions and verify framing with decoded-frame tests. Perform all cropping during preparation, not on the Pi.
+- Keep intro/outro trimming non-destructive: preserve original downloads, store retained source-time ranges in the versioned manifest, and prepare a new output library. Use LosslessCut's native projects and CSV (seconds), not a custom video editor or intermediate video exports. Import only the one retained range for the named clip; preserve all other decisions and source crops. Existing editor projects take precedence over manifest changes when reopening; rename an old project to reinitialize it. Never guess trailer boundaries automatically.
 - Keep local full-sequence previews in the `preview/justfile` module. Reuse `media check` and `player order` for validation and scheduling; play prepared files without re-encoding. CRT simulation uses mpv's gpu-next and the pinned CRT-Royale port from hhirtz/mpv-retro-shaders. On macOS use `--macos-render-timer=system`; the default CVDisplayLink timer can stall when no screen callback is available. Cache shaders in ignored `.cache/` and playlists/screenshots in ignored `bin/preview/`. Do not confuse desktop shader rendering with physical CRT or Pi qualification.
 
 ## Conventions and verification

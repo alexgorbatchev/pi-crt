@@ -1,6 +1,7 @@
 set dotenv-load := false
 
 mod preview 'preview/justfile'
+mod edit 'edit/justfile'
 
 # Default recipe: list available recipes
 default:
@@ -85,6 +86,7 @@ check:
     golangci-lint run ./...
     for script in scripts/*.sh; do sh -n "$script" || exit; done
     just preview check
+    just edit check
     just --fmt --check
 
 # Clean up build binaries and temporary files

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/url"
 	"os"
 	"os/exec"
@@ -101,22 +100,9 @@ func Prepare(ctx context.Context, manifestPath, output string, opts Options) (er
 	if opts.Noise < 0 || opts.Noise > 30 {
 		return fmt.Errorf("noise must be between 0 and 30")
 	}
-	var m Manifest
-	if err := library.ReadJSON(manifestPath, &m); err != nil {
+	m, err := loadManifest(manifestPath)
+	if err != nil {
 		return err
-	}
-	if len(m.Clips) == 0 {
-		return fmt.Errorf("manifest has no clips")
-	}
-	seen := make(map[string]bool)
-	for _, c := range m.Clips {
-		if !library.ValidID(c.ID) || seen[c.ID] || c.Source == "" || c.Start < 0 || math.IsNaN(c.Start) || !library.ValidDuration(c.End-c.Start) || c.End-c.Start < 0.5 {
-			return fmt.Errorf("invalid or duplicate cut %q; require source and at least 0.5 seconds", c.ID)
-		}
-		if r := c.Crop; r != nil && (r.X < 0 || r.Y < 0 || r.Width <= 0 || r.Height <= 0) {
-			return fmt.Errorf("cut %s: crop requires nonnegative x/y and positive width/height", c.ID)
-		}
-		seen[c.ID] = true
 	}
 	if _, err := os.Lstat(output); err == nil {
 		return fmt.Errorf("output %s already exists; choose a new directory", output)
