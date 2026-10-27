@@ -16,8 +16,9 @@ Offline Halloween ambiance for a Raspberry Pi 1 and a composite CRT: prepare cli
 
 # How it Really Works
 
-- Clips become 640×480, square-pixel 4:3, H.264 Baseline level 3.0 with mono AAC. Sources scale proportionally to cover the screen, then crop at the center; widescreen footage loses its sides and portrait footage loses its top and bottom. No stretching or added black bars. NTSC uses 30000/1001 fps; PAL uses 25 fps. Video bitrate is capped at 2 Mbit/s.
-- Each clip begins with 0.4 seconds of static and quiet noise audio. The Pi does no effect rendering or downloading.
+- Clips become 320×240 progressive, square-pixel 4:3, H.264 Baseline level 3.0 with mono AAC. Sources scale proportionally to cover the screen, then crop equally around the center on both axes; widescreen footage loses its sides and portrait footage loses its top and bottom. No stretching or added black bars. NTSC uses 30000/1001 fps; PAL uses 25 fps. Video bitrate is capped at 2 Mbit/s. File resolution does not select the Pi's physical composite signal mode.
+- Original source videos remain separate from prepared libraries. Local files stay unchanged; URL downloads and their provenance are retained under `sources/` beside the manifest and reused offline for later renders. YouTube editing masters remain 720p; preparation alone reduces them to 240p.
+- Effects are baked into prepared files on the editing computer; the Pi does no effect rendering or downloading. Each clip starts with a 0.4-second static burst, including the first clip played. See [Effects and Timing](#effects-and-timing) for the processing and desktop-only CRT simulation.
 - The default excludes the five most recently selected clips, clamped to library size minus one. History survives reshuffles but resets at power-on. Clips sharing a `group` are separated when another eligible group exists. One clip necessarily repeats; very small libraries with maximum exclusion can settle into a fixed order. Lower `--recent` for more shuffle variety.
 - VLC's HTTP interface binds only to loopback with a per-launch random password. Its playlist stays bounded to one item. Playback is sequential; short gaps between files remain possible. This is not a gapless compositor.
 - Failed files are excluded until restart. Process supervision restarts the player after a crash. There is no desktop, login, or network-online dependency in the playback service.
@@ -32,9 +33,10 @@ There is no published release URL yet. Contributor build commands are in [AGENTS
 signals; `bin/demo-library/` contains its three playable clips.
 
 The preparation computer needs FFmpeg 8+ (including `libx264`, `dynaudnorm`, and
-the scale filter's `reset_sar` option), FFprobe, and yt-dlp on PATH. Public URLs
-must be supported by the installed yt-dlp version. Downloading is unnecessary
-when using local files. Optional local playback requires VLC 3 with its Lua HTTP interface.
+the scale filter's `reset_sar` option) and FFprobe on PATH. First-time URL
+downloads also require yt-dlp; URLs must be supported by its installed version.
+Local files and retained URL downloads can be reprocessed without network access
+or yt-dlp. Optional local playback requires VLC 3 with its Lua HTTP interface.
 
 The Pi needs a 32 GB SD card and Raspberry Pi OS Lite **32-bit**. Installation
 requires a writable, provisioned OS and temporary internet access for packages.
@@ -77,6 +79,69 @@ Inspect bright scenes to distinguish borders from dark footage. The selected
 picture then scales and center-crops to fill 4:3, which can trim titles and
 subjects near the edges. Rebuild older letterboxed libraries into a new directory
 to apply this framing; fullscreen playback alone cannot remove bars baked into files.
+
+# Effects and Timing
+
+`media prepare` renders the following effects into each output file. Changing
+preparation settings requires preparing a new output library; existing libraries
+remain unchanged.
+
+| Effect | When it appears | Processing |
+| --- | --- | --- |
+| Light picture noise | Throughout the retained trailer footage | Animated, uniform luma noise; default `--noise 4`, range 0–30. `--noise 0` disables this layer without removing the static burst. |
+| Blocky monochrome static | First 0.4 seconds of every prepared clip, including the first clip played | Strong animated noise generated at 80×60 and enlarged to 320×240 with nearest-neighbor scaling, producing 4×4 blocks. The final 100 ms fade toward black. |
+| Quiet noise audio | During the 0.4-second static burst | Generated noise at amplitude 0.06, fading out over the final 100 ms. |
+| Audio leveling | Throughout the retained trailer audio | Dynamic normalization with target peak 0.7, maximum gain 5, and soft compression factor 5. Audio is converted to 48 kHz mono; missing or short audio is padded with silence. |
+| Audio fades | Beginning and end of the retained trailer audio | 20 ms fade-in and 30 ms fade-out. |
+| CRT display simulation | During desktop playback with `just preview` or `just preview run` | CRT-Royale simulates scanlines, phosphor structure, and bloom in mpv. `just preview plain` omits this shader while retaining every baked-in effect. |
+
+Preparation also applies each cut's optional source crop, scales proportionally
+to cover 320×240, center-crops to fill 4:3, and converts to 30000/1001 fps (NTSC)
+or 25 fps (PAL). Original source downloads remain unchanged. The trailer image
+has no added video fade, color grading, screen curvature, grid, phosphor mask,
+or scanlines. Physical CRT display characteristics are left to the display;
+the CRT shader is for desktop preview only and never enters the prepared files
+or the default Pi playback path. Reception noise and static simulate signal
+interference separately from those display characteristics.
+
+# Reprocessing Original Sources
+
+Keep the downloaded masters and their provenance under ignored `sources/`.
+The supplied horror manifest already points to the original 720p MP4 files in
+`sources/horror-trailers/`. Crop rectangles and retained time ranges refer to
+these originals, independently of output resolution and effects.
+
+For a manifest containing HTTP(S) URLs, preparation saves each complete source
+as `sources/<URL SHA-256>/source.mkv` beside that manifest, together with yt-dlp's
+`source.info.json` provenance. For example, URL entries in `examples/clips.json`
+use `examples/sources/`. Downloads are remuxed without re-encoding, probed, and
+fully decoded before publication. YouTube downloads require genuine 720-line
+video and audio, with H.264/AAC preferred; other URLs prefer formats up to 720p.
+Later renders validate and reuse the retained file without contacting the URL.
+Failed renders preserve completed downloads. Damaged retained sources cause an
+error rather than being silently replaced.
+
+1. Keep the original source files, saved editor projects, and provenance in place.
+   Adjust the manifest's retained ranges or source-pixel crops as needed.
+2. Render into a fresh output directory:
+
+   ```sh
+   ./bin/pi-crt media prepare examples/horror-trailers.json bin/library-240p
+   ```
+
+   `bin/` must exist and `bin/library-240p` must not exist. Each render starts
+   from the source masters; it does not downscale an older prepared library or
+   apply effects twice. Original files and existing libraries remain unchanged.
+3. Validate and preview the result:
+
+   ```sh
+   ./bin/pi-crt media check bin/library-240p
+   just preview run bin/library-240p
+   ```
+
+   `just preview plain bin/library-240p` plays the same files without the desktop
+   CRT shader. Existing 640×480 libraries keep their old resolution and effects
+   until replaced with a separately prepared 320×240 library.
 
 # Local Sequence Preview
 

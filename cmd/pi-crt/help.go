@@ -14,9 +14,9 @@ var techCatalog = cobrahelptree.TechCatalog{
 		Description: "Offline composite-video ambiance player for Raspberry Pi 1 - command-line interface.",
 	},
 	"pi-crt media prepare": {
-		Summary:  "Render a new clip library; writes only to the requested output and its parent scratch directory",
+		Summary:  "Render a new 320x240 clip library; retain URL downloads beside the manifest for offline reprocessing",
 		Args:     []cobrahelptree.ArgSpec{{Name: "MANIFEST", Description: "JSON clip manifest"}, {Name: "OUTPUT", Description: "New library directory"}},
-		Metadata: map[string]string{"writes": "OUTPUT and temporary sibling directory", "network": "HTTP(S) sources only"},
+		Metadata: map[string]string{"writes": "OUTPUT, temporary sibling directory, and sources/ beside MANIFEST for URL downloads", "network": "uncached HTTP(S) sources only"},
 	},
 	"pi-crt media check":  {Args: []cobrahelptree.ArgSpec{{Name: "LIBRARY", Description: "Prepared media directory"}}},
 	"pi-crt media edit":   {Args: []cobrahelptree.ArgSpec{{Name: "MANIFEST", Description: "JSON clip manifest"}, {Name: "CLIP", Description: "Clip ID"}}, Metadata: map[string]string{"writes": "CLIP-proj.llc beside the local source; existing projects preserved", "network": "none"}},

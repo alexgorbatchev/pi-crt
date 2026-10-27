@@ -52,25 +52,25 @@ func TestFramingIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if frame.Bounds().Dx() != 640 || frame.Bounds().Dy() != 480 {
+			if frame.Bounds().Dx() != 320 || frame.Bounds().Dy() != 240 {
 				t.Fatalf("wrong frame size: %v", frame.Bounds())
 			}
-			for _, p := range []image.Point{{2, 2}, {637, 2}, {2, 477}, {637, 477}, {320, 2}, {320, 477}, {2, 240}, {637, 240}} {
+			for _, p := range []image.Point{{2, 2}, {317, 2}, {2, 237}, {317, 237}, {160, 2}, {160, 237}, {2, 120}, {317, 120}} {
 				r, g, b, _ := frame.At(p.X, p.Y).RGBA()
 				if g < 90*257 || r > 40*257 || b > 40*257 {
 					t.Errorf("picture does not fill edge %v: rgb(%d,%d,%d)", p, r/257, g/257, b/257)
 				}
 			}
 			var square image.Rectangle
-			for y := range 480 {
-				for x := range 640 {
+			for y := range 240 {
+				for x := range 320 {
 					r, g, b, _ := frame.At(x, y).RGBA()
 					if b > 180*257 && r < 40*257 && g < 40*257 {
 						square = square.Union(image.Rect(x, y, x+1, y+1))
 					}
 				}
 			}
-			if square.Dx() < 80 || square.Dy() < 80 || abs(square.Dx()-square.Dy()) > 3 || abs(square.Min.X+square.Max.X-640) > 4 || abs(square.Min.Y+square.Max.Y-480) > 4 {
+			if square.Dx() < 40 || square.Dy() < 40 || abs(square.Dx()-square.Dy()) > 3 || abs(square.Min.X+square.Max.X-320) > 4 || abs(square.Min.Y+square.Max.Y-240) > 4 {
 				t.Fatalf("center square distorted or displaced: %v", square)
 			}
 		})

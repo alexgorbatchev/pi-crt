@@ -4,7 +4,7 @@ description: Use when operating the pi-crt CLI.
 author: Alex Gorbatchev
 metadata:
   created_on: 2026-10-26 22:51
-  last_modified: 2026-10-27 09:20
+  last_modified: 2026-10-27 10:39
   status: current
 ---
 
@@ -16,10 +16,12 @@ whitespace. Human mode is the default. Errors exit nonzero and print `ERR:`
 in agent mode or `[ERROR]` otherwise. Data output is identical in both modes.
 Ctrl-C and SIGTERM cancel active work and exit successfully.
 Media preparation uses FFmpeg and FFprobe from PATH, plus yt-dlp for HTTP(S)
-sources. Only downloads need network access; all other operations are offline.
+sources not already retained locally. Only new downloads need network access;
+local sources and retained URL downloads can be reprocessed offline without yt-dlp.
 VLC is required for playback. HOME and XDG variables affect VLC's own profile;
 the supplied Pi service redirects these into RAM. The controller stores no
-persistent runtime state. Preparation uses a scratch directory beside OUTPUT.
+persistent runtime state. Preparation uses a scratch directory beside OUTPUT
+and retains URL downloads under sources/ beside MANIFEST.
 
 ## `pi-crt`
 
@@ -49,22 +51,39 @@ Each cut may include `crop: {"x": 0, "y": 86, "width": 1280, "height": 548}`
 to remove borders baked into the source. Coordinates and dimensions are integers
 in source pixels. Require nonnegative x/y, positive width/height, and a rectangle
 wholly within the source. Apply this crop before scaling. Without it, use the
-whole source frame. Scale proportionally to cover 640x480, account for source
-pixel aspect ratio, then center-crop to square-pixel 4:3. Fill the entire screen
+whole source frame. Scale proportionally to cover 320x240, account for source
+pixel aspect ratio, then crop explicitly around the center on both axes to
+square-pixel 4:3. Fill the entire screen
 without stretching or adding borders. Widescreen sources lose their sides;
 portrait sources lose their top and bottom. Existing prepared libraries must be
-prepared again into a new directory to receive the framing change.
+prepared again from the originals into a new directory to receive changed
+resolution, framing, or effects. Local source files remain byte-for-byte unchanged.
 
 OUTPUT must not exist and its parent must exist. Render in a temporary sibling,
 then rename into OUTPUT after success. Failed preparation removes scratch.
 An abrupt kill may leave `.pi-crt-prepare-*` scratch in the parent.
-Downloads are temporary and reused within a single preparation run.
-yt-dlp ignores user config, downloads one item and remuxes to MKV. Prefer formats
-up to 720p; accept unknown source resolution when the extractor cannot report it.
+Retain URL downloads under sources/<URL SHA-256>/ beside MANIFEST, independently
+of OUTPUT. Each directory contains source.mkv and yt-dlp's source.info.json
+provenance. yt-dlp ignores user config, downloads one item, prefers H.264/AAC,
+and remuxes to MKV without re-encoding. YouTube URLs require genuine 720-line
+video and audio; other URLs prefer formats up to 720p and accept unknown source
+resolution when the extractor cannot report it. Probe and fully decode downloads
+before publishing them from a temporary .download-* directory. Reuse retained
+files offline after validation; completed downloads survive failed renders.
+Invalid retained files cause an error; preserve or move the damaged directory
+before downloading again. An abrupt kill may leave .download-* scratch in sources/.
 Publicly accessible sources require no credentials; downloader failures are errors.
-Prepared files are 640x480 H.264 baseline level 3.0, yuv420p, mono AAC 48 kHz,
+Prepared files are 320x240 progressive H.264 baseline level 3.0, yuv420p, mono AAC 48 kHz,
 cropped to fill 4:3, with dynamic audio normalization, optional luma noise, and 0.4
 seconds of static at the beginning. NTSC is 30000/1001 fps; PAL is 25 fps.
+Static uses an 80x60 animated monochrome noise field enlarged to 320x240 with
+nearest-neighbor scaling, producing coarse 4x4 blocks.
+It fades toward black over its final 100 ms, accompanied by quiet noise audio fading
+over its final 100 ms. Trailer audio has soft compression and 20 ms fade-in /
+30 ms fade-out. `--noise 0` disables trailer luma noise, not the static prefix.
+Effects are rendered during preparation; Pi playback adds none by default.
+CRT display simulation is restricted to desktop preview shaders.
+Encoded resolution does not select the physical composite signal mode.
 Write `clips/*.mp4` and `library.json`. Print OUTPUT to stdout; progress and
 external-tool diagnostics go to stderr.
 

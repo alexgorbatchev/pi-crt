@@ -1,6 +1,7 @@
 package media
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"pi-crt/internal/library"
@@ -47,18 +49,22 @@ func TestPrepareValidation(t *testing.T) {
 	if err := Prepare(t.Context(), "missing", dir, Options{Standard: "ntsc"}); err == nil {
 		t.Fatal("accepted missing manifest")
 	}
-	if _, err := source(t.Context(), p, dir, "ftp://example.com/a", 0, io.Discard); err == nil {
+	if _, err := source(t.Context(), p, "ftp://example.com/a", io.Discard); err == nil {
 		t.Fatal("accepted ftp")
 	}
-	if _, err := source(t.Context(), p, dir, "http://%", 0, io.Discard); err == nil {
+	if _, err := source(t.Context(), p, "http://%", io.Discard); err == nil {
 		t.Fatal("accepted invalid URL")
 	}
 	t.Setenv("PATH", t.TempDir())
 	if err := Prepare(t.Context(), p, filepath.Join(dir, "out"), Options{Standard: "ntsc"}); err == nil {
 		t.Fatal("accepted missing ffmpeg")
 	}
-	if _, err := source(t.Context(), p, dir, "https://example.com/video", 0, io.Discard); err == nil {
+	if _, err := source(t.Context(), p, "https://example.com/video", io.Discard); err == nil {
 		t.Fatal("accepted missing downloader")
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, "sources"))
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("failed download left reusable source or scratch: %v %v", entries, err)
 	}
 }
 
@@ -142,6 +148,57 @@ func TestRenderIntegration(t *testing.T) {
 	if len(entries) != 2 {
 		t.Fatal("download scratch leaked into library")
 	}
+	retained, err := source(t.Context(), p, srv.URL+"/source.mp4", os.Stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := os.ReadFile(retained)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(retained), "source.info.json")); err != nil {
+		t.Fatalf("missing download provenance: %v", err)
+	}
+	srv.Close()
+	t.Run("offline-reprocessing", func(t *testing.T) {
+		// Keep the real render tools available, but remove yt-dlp from PATH.
+		tools := t.TempDir()
+		for _, name := range []string{"ffmpeg", "ffprobe"} {
+			path, err := exec.LookPath(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(path, filepath.Join(tools, name)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		t.Setenv("PATH", tools)
+		if err := Prepare(t.Context(), p, filepath.Join(dir, "web-reprocessed"), Options{Standard: "pal", Noise: 0, Log: os.Stderr}); err != nil {
+			t.Fatalf("reprocessing required network or downloader: %v", err)
+		}
+		if got, err := os.ReadFile(retained); err != nil || !bytes.Equal(original, got) {
+			t.Fatalf("reprocessing changed retained source: %v", err)
+		}
+		pastEnd := writeManifest(t, dir, []Cut{{ID: "too-long", Source: srv.URL + "/source.mp4", End: 99}})
+		if err := Prepare(t.Context(), pastEnd, filepath.Join(dir, "web-failed"), Options{Standard: "ntsc"}); err == nil {
+			t.Fatal("accepted past-end cached source")
+		}
+		if got, err := os.ReadFile(retained); err != nil || !bytes.Equal(original, got) {
+			t.Fatalf("failed preparation changed retained source: %v", err)
+		}
+		// Corrupt retained input must fail without contacting the origin or
+		// silently replacing the user's only remaining source.
+		damaged := []byte("damaged retained video")
+		if err := os.WriteFile(retained, damaged, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := source(t.Context(), p, srv.URL+"/source.mp4", io.Discard); err == nil || !strings.Contains(err.Error(), "retained source") {
+			t.Fatalf("missing retained-source corruption error: %v", err)
+		}
+		if got, err := os.ReadFile(retained); err != nil || !bytes.Equal(damaged, got) {
+			t.Fatalf("corrupt source was removed or replaced: %v", err)
+		}
+	})
 	// A missing source must clean up its staging directory.
 	p = writeManifest(t, dir, []Cut{{ID: "missing", Source: "missing.mp4", End: 1}})
 	if err := Prepare(t.Context(), p, filepath.Join(dir, "missing-out"), Options{Standard: "ntsc"}); err == nil {

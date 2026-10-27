@@ -1,6 +1,6 @@
 ---
 created_on: 2026-10-26 22:51
-last_modified: 2026-10-27 09:20
+last_modified: 2026-10-27 10:39
 status: current
 ---
 
@@ -33,9 +33,12 @@ Prepare clips on the Mac; run an offline composite-video appliance on a Pi 1 wit
 
 ## Media quality
 
-- Download YouTube source trailers at 720p, one standard resolution tier above the project's 640×480 CRT playback files. Prefer H.264 video with AAC audio in MP4; preserve source aspect ratio and frame rate. Do not download 1080p/4K or upscale lower-resolution uploads to meet this requirement; find a genuine 720p upload instead.
+- Do not bake CRT display characteristics into prepared video or add them during Pi playback: no CRT grid, phosphor mask, scanlines, screen curvature, or other effects the physical CRT already produces. CRT simulation shaders are for desktop preview only.
+- Keep the 0.4-second static prefix visibly blocky at 240p: generate noise at 80×60 and enlarge with nearest-neighbor scaling to 320×240, producing 4×4 blocks. Verify decoded output; fine pixel noise averages into gray when downscaled. Fade the static picture and audio over the final 100 ms so the fade spans multiple PAL frames. Document effects and their timing in README.md.
+- Download YouTube source trailers at 720p as reusable editing masters, independently of the 320×240 playback output. Prefer H.264 video with AAC audio in MP4; preserve source aspect ratio and frame rate. Do not download 1080p/4K or upscale lower-resolution uploads to meet this requirement; find a genuine 720p upload instead.
 - Keep source downloads and their YouTube provenance under ignored `sources/`. Check each download with FFprobe for 720-line video and an audio stream, then decode the complete file with FFmpeg to detect corruption.
-- Prepare Pi playback separately through `media prepare`: 640×480, square pixels, 4:3 filling the entire screen, H.264 Baseline level 3.0, maximum 2 Mbit/s video, mono AAC, and the library's NTSC/PAL frame rate. Preserve proportions by scaling to cover and center-cropping; never stretch or add letterboxing/pillarboxing. Source downloads are editing inputs, not Pi-ready playback files.
+- Prepare Pi playback separately through `media prepare`: 320×240 progressive, square pixels, 4:3 filling the entire screen, H.264 Baseline level 3.0, maximum 2 Mbit/s video, mono AAC, and the library's NTSC/PAL frame rate. Preserve proportions by scaling to cover and explicitly center-cropping on both axes; never anchor the final crop to the top-left, stretch, or add letterboxing/pillarboxing. Source crop coordinates remain in original source pixels. Encoded resolution does not configure the physical composite signal mode.
+- Preserve source downloads and provenance for offline reprocessing into new libraries. Direct HTTP(S) preparation retains validated downloads under `sources/<URL SHA-256>/` beside the manifest, independently of output staging; never delete these when rendering succeeds or fails. Keep local sources byte-for-byte unchanged.
 - Remove baked-in borders with each cut's optional `crop` rectangle in source pixels before fitting to 4:3. Inspect representative bright scenes to choose the active picture; darkness in horror footage makes automatic black-border detection unreliable. Validate crops against source dimensions and verify framing with decoded-frame tests. Perform all cropping during preparation, not on the Pi.
 - Keep intro/outro trimming non-destructive: preserve original downloads, store retained source-time ranges in the versioned manifest, and prepare a new output library. Use LosslessCut's native projects and CSV (seconds), not a custom video editor or intermediate video exports. Import only the one retained range for the named clip; preserve all other decisions and source crops. Existing editor projects take precedence over manifest changes when reopening; rename an old project to reinitialize it. Never guess trailer boundaries automatically.
 - Keep local full-sequence previews in the `preview/justfile` module. Reuse `media check` and `player order` for validation and scheduling; play prepared files without re-encoding. CRT simulation uses mpv's gpu-next and the pinned CRT-Royale port from hhirtz/mpv-retro-shaders. On macOS use `--macos-render-timer=system`; the default CVDisplayLink timer can stall when no screen callback is available. Cache shaders in ignored `.cache/` and playlists/screenshots in ignored `bin/preview/`. Do not confuse desktop shader rendering with physical CRT or Pi qualification.
