@@ -1,0 +1,75 @@
+version: 2
+
+project_name: pi-crt
+
+builds:
+  - id: pi-crt
+    main: ./cmd/pi-crt
+    binary: pi-crt
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    goarm:
+      - '6'
+    ignore:
+      - goos: darwin
+        goarch: arm
+
+archives:
+  - id: versioned
+    files:
+      - README.md
+      - LICENSE
+      - deploy/**
+      - scripts/**
+      - docs/**
+      - examples/**
+      - AGENTS.md
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  - id: unversioned
+    files:
+      - README.md
+      - LICENSE
+      - deploy/**
+      - scripts/**
+      - docs/**
+      - examples/**
+      - AGENTS.md
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  # Enable publishing only after a repository and release destination are chosen.
+  disable: true
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"

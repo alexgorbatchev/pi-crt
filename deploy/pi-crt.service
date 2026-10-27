@@ -1,0 +1,35 @@
+[Unit]
+Description=Offline CRT ambiance player
+After=local-fs.target systemd-udev-trigger.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=pi-crt
+Group=pi-crt
+SupplementaryGroups=video audio render
+RuntimeDirectory=pi-crt
+RuntimeDirectoryMode=0700
+Environment=HOME=/run/pi-crt
+Environment=XDG_CONFIG_HOME=/run/pi-crt/config
+Environment=XDG_CACHE_HOME=/run/pi-crt/cache
+Environment=XDG_DATA_HOME=/run/pi-crt/data
+Environment=XDG_RUNTIME_DIR=/run/pi-crt
+Environment=GOMEMLIMIT=24MiB
+ExecStart=/opt/pi-crt/pi-crt player run /opt/pi-crt/library --vlc-arg=--vout=drm --vlc-arg=--drm-vout-display=Composite-1 --vlc-arg=--aout=alsa --vlc-arg=--alsa-audio-device=sysdefault:CARD=Headphones
+Restart=always
+RestartSec=3
+TimeoutStopSec=5
+KillMode=control-group
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/run/pi-crt
+RestrictAddressFamilies=AF_UNIX AF_INET
+StandardOutput=journal
+StandardError=journal
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=100
+
+[Install]
+WantedBy=multi-user.target

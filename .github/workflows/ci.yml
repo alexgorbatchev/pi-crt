@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Check module hygiene
+        run: go mod tidy -diff
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Cross-compile Pi 1
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=6 go build -o /tmp/pi-crt-armv6 ./cmd/pi-crt
+
+      - name: Check shell syntax
+        run: for script in scripts/*.sh; do sh -n "$script" || exit; done
+
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.2

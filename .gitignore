@@ -1,0 +1,24 @@
+# Binaries
+bin/
+/pi-crt
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Directories and temporary files
+.tmp/
+.codegraph/
+.cache/
+.pi-subagents/
+dist/
+build/
+coverage.out
+sources/
+/library/
+
+# OS / Editor files
+.DS_Store
+*.swp
+*.swo
