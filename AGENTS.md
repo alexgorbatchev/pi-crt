@@ -1,6 +1,6 @@
 ---
 created_on: 2026-10-26 22:51
-last_modified: 2026-10-27 10:55
+last_modified: 2026-10-27 12:02
 status: current
 ---
 
@@ -54,5 +54,5 @@ Prepare clips on the Mac; run an offline composite-video appliance on a Pi 1 wit
 - Before code review, apply the code-review-baseline skill. Use codegraph if this project has an index.
 - Automatically record new durable project instructions here; check with the user when they conflict with existing instructions.
 - Never publish releases, tags, packages, or deployments without explicit authorization. Do not commit generated media, downloaded sources, or binaries.
-- GoReleaser publishing is intentionally disabled while this is a local repository without a release destination. Local packaging is available through `just package`.
+- GoReleaser publishing is intentionally disabled. Local packaging is available through `just package`; publishing a release requires explicit authorization.
 - Private internal domains defined in the global agent instructions must never be committed/pushed to github.com, including private repositories. Inspect destination and changes before commits/pushes.

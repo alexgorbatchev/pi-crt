@@ -63,7 +63,7 @@ checksum:
   name_template: checksums.txt
 
 release:
-  # Enable publishing only after a repository and release destination are chosen.
+  # Enable publishing only with explicit authorization to publish releases.
   disable: true
 
 changelog:
