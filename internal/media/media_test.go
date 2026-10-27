@@ -104,8 +104,8 @@ func TestRenderIntegration(t *testing.T) {
 	if err := Prepare(t.Context(), p, filepath.Join(dir, "silent-out"), Options{Standard: "ntsc", Log: os.Stderr}); err != nil {
 		t.Fatal(err)
 	}
-	_, audio, err := inspect(t.Context(), filepath.Join(dir, "silent-out", "clips", "silent.mp4"))
-	if err != nil || !audio {
+	info, err := inspect(t.Context(), filepath.Join(dir, "silent-out", "clips", "silent.mp4"))
+	if err != nil || !info.Audio {
 		t.Fatalf("missing silent audio: %v", err)
 	}
 	p = writeManifest(t, dir, []Cut{{ID: "past-end", Source: src, End: 99}})
@@ -121,7 +121,7 @@ func TestRenderIntegration(t *testing.T) {
 	if err := Prepare(ctx, p, out, Options{Standard: "ntsc"}); err == nil {
 		t.Fatal("ignored cancellation")
 	}
-	if _, _, err := inspect(t.Context(), "missing"); err == nil {
+	if _, err := inspect(t.Context(), "missing"); err == nil {
 		t.Fatal("probed nonexistent media")
 	}
 	if _, err := exec.LookPath("ffprobe"); err != nil {
@@ -158,7 +158,7 @@ func TestRenderIntegration(t *testing.T) {
 	if err := run(t.Context(), os.Stderr, "ffmpeg", "-v", "error", "-i", src, "-vn", "-c:a", "copy", audioFile); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := inspect(t.Context(), audioFile); err == nil {
+	if _, err := inspect(t.Context(), audioFile); err == nil {
 		t.Fatal("accepted audio-only input")
 	}
 }

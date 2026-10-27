@@ -1,16 +1,40 @@
 set dotenv-load := false
 
+mod preview 'preview/justfile'
+
 # Default recipe: list available recipes
 default:
     @just --list
 
 # Run CLI in human mode (default)
+[positional-arguments]
 run *args:
-    go run ./cmd/pi-crt {{ args }}
+    go run ./cmd/pi-crt "$@"
 
 # Run CLI in agent-facing mode
+[positional-arguments]
 run-ai *args:
-    AGENT=1 go run ./cmd/pi-crt {{ args }}
+    AGENT=1 go run ./cmd/pi-crt "$@"
+
+# Prepare a new library (existing output directories are refused)
+[positional-arguments]
+prepare manifest='examples/horror-trailers.json' output='library' *args: build
+    ./bin/pi-crt media prepare "$@"
+
+# Validate library metadata and files
+[positional-arguments]
+media-check library='library': build
+    ./bin/pi-crt media check "$@"
+
+# Inspect the appliance scheduler's selection order
+[positional-arguments]
+order library='library' *args: build
+    ./bin/pi-crt player order "$@"
+
+# Run the actual VLC appliance player locally (requires VLC on PATH)
+[positional-arguments]
+play library='library' *args: build
+    ./bin/pi-crt player run "$@"
 
 # Run test suite
 test:
@@ -60,6 +84,7 @@ check:
     just test
     golangci-lint run ./...
     for script in scripts/*.sh; do sh -n "$script" || exit; done
+    just preview check
     just --fmt --check
 
 # Clean up build binaries and temporary files

@@ -23,6 +23,15 @@ type Cut struct {
 	Source string  `json:"source"`
 	Start  float64 `json:"start"`
 	End    float64 `json:"end"`
+	Crop   *Crop   `json:"crop,omitempty"`
+}
+
+// Crop identifies the active picture in source pixels, before fitting to 4:3.
+type Crop struct {
+	X      int `json:"x"`
+	Y      int `json:"y"`
+	Width  int `json:"width"`
+	Height int `json:"height"`
 }
 type Manifest struct {
 	Clips []Cut `json:"clips"`
@@ -39,7 +48,15 @@ type probe struct {
 	} `json:"format"`
 	Streams []struct {
 		CodecType string `json:"codec_type"`
+		Width     int    `json:"width"`
+		Height    int    `json:"height"`
 	} `json:"streams"`
+}
+
+type mediaInfo struct {
+	Duration      float64
+	Audio         bool
+	Width, Height int
 }
 
 func run(ctx context.Context, log io.Writer, name string, args ...string) error {
@@ -51,28 +68,30 @@ func run(ctx context.Context, log io.Writer, name string, args ...string) error 
 	return nil
 }
 
-func inspect(ctx context.Context, path string) (float64, bool, error) {
+func inspect(ctx context.Context, path string) (mediaInfo, error) {
 	b, err := exec.CommandContext(ctx, "ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", path).Output()
 	if err != nil {
-		return 0, false, fmt.Errorf("probe %s: %w", path, err)
+		return mediaInfo{}, fmt.Errorf("probe %s: %w", path, err)
 	}
 	var p probe
 	if err := json.Unmarshal(b, &p); err != nil {
-		return 0, false, err
+		return mediaInfo{}, err
 	}
 	d, err := strconv.ParseFloat(p.Format.Duration, 64)
 	if err != nil || !library.ValidDuration(d) {
-		return 0, false, fmt.Errorf("%s: missing finite duration", path)
+		return mediaInfo{}, fmt.Errorf("%s: missing finite duration", path)
 	}
-	video, audio := false, false
+	info := mediaInfo{Duration: d}
 	for _, s := range p.Streams {
-		video = video || s.CodecType == "video"
-		audio = audio || s.CodecType == "audio"
+		if s.CodecType == "video" && info.Width == 0 {
+			info.Width, info.Height = s.Width, s.Height
+		}
+		info.Audio = info.Audio || s.CodecType == "audio"
 	}
-	if !video {
-		return 0, false, fmt.Errorf("%s: no video stream", path)
+	if info.Width <= 0 || info.Height <= 0 {
+		return mediaInfo{}, fmt.Errorf("%s: no video stream with valid dimensions", path)
 	}
-	return d, audio, nil
+	return info, nil
 }
 
 func Prepare(ctx context.Context, manifestPath, output string, opts Options) (err error) {
@@ -93,6 +112,9 @@ func Prepare(ctx context.Context, manifestPath, output string, opts Options) (er
 	for _, c := range m.Clips {
 		if !library.ValidID(c.ID) || seen[c.ID] || c.Source == "" || c.Start < 0 || math.IsNaN(c.Start) || !library.ValidDuration(c.End-c.Start) || c.End-c.Start < 0.5 {
 			return fmt.Errorf("invalid or duplicate cut %q; require source and at least 0.5 seconds", c.ID)
+		}
+		if r := c.Crop; r != nil && (r.X < 0 || r.Y < 0 || r.Width <= 0 || r.Height <= 0) {
+			return fmt.Errorf("cut %s: crop requires nonnegative x/y and positive width/height", c.ID)
 		}
 		seen[c.ID] = true
 	}
@@ -128,12 +150,15 @@ func Prepare(ctx context.Context, manifestPath, output string, opts Options) (er
 			}
 			sources[c.Source] = path
 		}
-		d, audio, err := inspect(ctx, path)
+		info, err := inspect(ctx, path)
 		if err != nil {
 			return err
 		}
-		if c.End > d+0.05 {
-			return fmt.Errorf("cut %s ends at %.3fs beyond source duration %.3fs", c.ID, c.End, d)
+		if c.End > info.Duration+0.05 {
+			return fmt.Errorf("cut %s ends at %.3fs beyond source duration %.3fs", c.ID, c.End, info.Duration)
+		}
+		if r := c.Crop; r != nil && (r.Width > info.Width || r.Height > info.Height || r.X > info.Width-r.Width || r.Y > info.Height-r.Height) {
+			return fmt.Errorf("cut %s: crop exceeds source dimensions %dx%d", c.ID, info.Width, info.Height)
 		}
 		dest := filepath.Join("clips", c.ID+".mp4")
 		if opts.Log != nil {
@@ -141,10 +166,10 @@ func Prepare(ctx context.Context, manifestPath, output string, opts Options) (er
 				return err
 			}
 		}
-		if err := render(ctx, path, filepath.Join(stage, dest), c, audio, opts); err != nil {
+		if err := render(ctx, path, filepath.Join(stage, dest), c, info.Audio, opts); err != nil {
 			return fmt.Errorf("cut %s: %w", c.ID, err)
 		}
-		duration, _, err := inspect(ctx, filepath.Join(stage, dest))
+		prepared, err := inspect(ctx, filepath.Join(stage, dest))
 		if err != nil {
 			return err
 		}
@@ -152,7 +177,7 @@ func Prepare(ctx context.Context, manifestPath, output string, opts Options) (er
 		if group == "" {
 			group = c.Source
 		}
-		lib.Clips = append(lib.Clips, library.Clip{ID: c.ID, Group: group, File: filepath.ToSlash(dest), Duration: duration})
+		lib.Clips = append(lib.Clips, library.Clip{ID: c.ID, Group: group, File: filepath.ToSlash(dest), Duration: prepared.Duration})
 	}
 	// Source downloads are preparation scratch, never part of the Pi library.
 	for _, path := range sources {
@@ -203,7 +228,11 @@ func render(ctx context.Context, src, dest string, cut Cut, audio bool, opts Opt
 	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin", "-ss", number(cut.Start), "-t", number(d), "-i", src}
 	// A finite silence source also covers silent source videos and short audio tracks.
 	args = append(args, "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono")
-	video := fmt.Sprintf("[0:v:0]setpts=PTS-STARTPTS,scale=640:480:force_original_aspect_ratio=decrease:force_divisible_by=2:reset_sar=1,pad=640:480:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=%s,format=yuv420p,noise=c0s=%d:c0f=t+u[v];", rate, opts.Noise)
+	crop := ""
+	if r := cut.Crop; r != nil {
+		crop = fmt.Sprintf("crop=%d:%d:%d:%d:exact=1,", r.Width, r.Height, r.X, r.Y)
+	}
+	video := fmt.Sprintf("[0:v:0]setpts=PTS-STARTPTS,%sscale=640:480:force_original_aspect_ratio=increase:force_divisible_by=2:reset_sar=1,crop=640:480,setsar=1,fps=%s,format=yuv420p,noise=c0s=%d:c0f=t+u[v];", crop, rate, opts.Noise)
 	a := "[1:a]"
 	if audio {
 		a = "[0:a:0]"

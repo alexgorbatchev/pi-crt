@@ -1,0 +1,95 @@
+set working-directory := '..'
+set positional-arguments
+
+# Play one shuffled round with CRT-Royale; optional library, count, recent, mpv flags
+[default]
+run library='library' count='0' recent='5' *args:
+    @just preview _play crt "$@"
+
+# Play the same prepared media without CRT display simulation
+plain library='library' count='0' recent='5' *args:
+    @just preview _play plain "$@"
+
+# Install mpv on macOS and cache the pinned CRT-Royale shader
+setup:
+    #!/bin/sh
+    set -eu
+    if ! command -v mpv >/dev/null 2>&1; then
+        if command -v brew >/dev/null 2>&1; then
+            brew install mpv
+        else
+            echo 'Install mpv (https://mpv.io/installation/) and rerun just preview setup.' >&2
+            exit 1
+        fi
+    fi
+    command -v jq >/dev/null 2>&1 || { echo 'Install jq before previewing.' >&2; exit 1; }
+    just preview shader
+
+# Fetch CRT-Royale once; verify the pinned checksum even when cached
+shader:
+    #!/bin/sh
+    set -eu
+    destination=.cache/mpv-retro-shaders/crt-royale-fb-intel.glsl
+    checksum=4600d189d033baf1b3da99c8282ce781243fbfe4e4a6dadaad73be9bb5e1806f
+    verify() { printf '%s  %s\n' "$checksum" "$1" | shasum -a 256 -c - >/dev/null 2>&1; }
+    if [ -f "$destination" ] && verify "$destination"; then exit 0; fi
+    mkdir -p .cache/mpv-retro-shaders
+    scratch=$(mktemp -d .cache/mpv-retro-shaders/download.XXXXXX)
+    trap 'rm -r "$scratch"' EXIT
+    trap 'exit 1' HUP INT TERM
+    curl --fail --location --retry 3 --output "$scratch/shader.glsl" \
+        https://raw.githubusercontent.com/hhirtz/mpv-retro-shaders/f4ea211db4e2afb5f5dc5a3daf816749c9cd7f03/crt-royale-fb-intel.glsl
+    verify "$scratch/shader.glsl" || { echo 'CRT-Royale checksum mismatch; refusing shader.' >&2; exit 1; }
+    mv "$scratch/shader.glsl" "$destination"
+
+# Write bin/preview/sequence.m3u8 using the real scheduler; count 0 means every clip once
+playlist library='library' count='0' recent='5':
+    #!/bin/sh
+    set -eu
+    library=$1 count=$2 recent=$3
+    command -v jq >/dev/null 2>&1 || { echo 'Install jq before previewing.' >&2; exit 1; }
+    just build
+    mkdir -p bin/preview
+    scratch=$(mktemp -d bin/preview/playlist.XXXXXX)
+    trap 'rm -r "$scratch"' EXIT
+    trap 'exit 1' HUP INT TERM
+    ./bin/pi-crt media check "$library" > "$scratch/library.json"
+    if [ "$count" = 0 ]; then count=$(jq '.clips | length' "$scratch/library.json"); fi
+    ./bin/pi-crt player order "$library" --count "$count" --recent "$recent" > "$scratch/order"
+    root=$(cd "$library" && pwd -P)
+    jq -nr --arg root "$root" --slurpfile library "$scratch/library.json" --rawfile order "$scratch/order" '
+        ($library[0].clips | INDEX(.id)) as $clips |
+        "#EXTM3U", ($order | split("\n")[] | select(length > 0) | $clips[.] |
+            "#EXTINF:\(.duration),\(.id)",
+            ("file://" + (($root + "/" + .file) | split("/") | map(@uri) | join("/"))))
+    ' > "$scratch/sequence.m3u8"
+    mv "$scratch/sequence.m3u8" bin/preview/sequence.m3u8
+    printf '%s\n' 'bin/preview/sequence.m3u8'
+
+[private]
+_play mode library count recent *args:
+    #!/bin/sh
+    set -eu
+    mode=$1 library=$2 count=$3 recent=$4
+    shift 4
+    command -v mpv >/dev/null 2>&1 || { echo 'Run just preview setup first (mpv is missing).' >&2; exit 1; }
+    just preview playlist "$library" "$count" "$recent"
+    if [ "$mode" = crt ]; then
+        just preview shader
+        set -- --glsl-shader="$PWD/.cache/mpv-retro-shaders/crt-royale-fb-intel.glsl" "$@"
+    fi
+    # Native layer timing avoids waiting on an unavailable CVDisplayLink on macOS.
+    if [ "$(uname -s)" = Darwin ]; then
+        set -- --macos-render-timer=system "$@"
+    fi
+    exec mpv --no-config --vo=gpu-next --keep-open=no --force-window=yes --autofit=960x720 \
+        --playlist=bin/preview/sequence.m3u8 "$@"
+
+# Decode a complete shuffled round without a display or audio output (requires mpv)
+test library='library':
+    just preview playlist "$1"
+    mpv --no-config --vo=null --ao=null --ao-null-untimed --untimed --playlist=bin/preview/sequence.m3u8
+
+# Check recipe formatting; real decoding is available separately via test
+check:
+    just --justfile preview/justfile --fmt --check

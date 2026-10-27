@@ -16,7 +16,7 @@ Offline Halloween ambiance for a Raspberry Pi 1 and a composite CRT: prepare cli
 
 # How it Really Works
 
-- Clips become 640×480, 4:3, H.264 Baseline level 3.0 with mono AAC. Wide sources are letterboxed. NTSC uses 30000/1001 fps; PAL uses 25 fps. Video bitrate is capped at 2 Mbit/s.
+- Clips become 640×480, square-pixel 4:3, H.264 Baseline level 3.0 with mono AAC. Sources scale proportionally to cover the screen, then crop at the center; widescreen footage loses its sides and portrait footage loses its top and bottom. No stretching or added black bars. NTSC uses 30000/1001 fps; PAL uses 25 fps. Video bitrate is capped at 2 Mbit/s.
 - Each clip begins with 0.4 seconds of static and quiet noise audio. The Pi does no effect rendering or downloading.
 - The default excludes the five most recently selected clips, clamped to library size minus one. History survives reshuffles but resets at power-on. Clips sharing a `group` are separated when another eligible group exists. One clip necessarily repeats; very small libraries with maximum exclusion can settle into a fixed order. Lower `--recent` for more shuffle variety.
 - VLC's HTTP interface binds only to loopback with a per-launch random password. Its playlist stays bounded to one item. Playback is sequential; short gaps between files remain possible. This is not a gapless compositor.
@@ -46,6 +46,8 @@ The firmware-only rainbow card cannot run this player; Linux and VLC replace tha
 1. Put source videos in `sources/`. Edit [examples/clips.json](examples/clips.json),
    replacing its sample path/timestamps with your own. `start` and `end` are seconds.
    A source may instead be a YouTube URL. Give snippets from the same film the same group.
+   The five downloaded horror trailers use [examples/horror-trailers.json](examples/horror-trailers.json)
+   and local source files under `sources/horror-trailers/`; these videos are not included in Git.
 2. Prepare a new library directory:
 
    ```sh
@@ -61,12 +63,84 @@ The firmware-only rainbow card cannot run this player; Linux and VLC replace tha
    ./bin/pi-crt player order library --count 30
    ```
 
-4. Open a prepared MP4 in your Mac's video player to inspect the effects. Use
-   `bin/demo-preview.mp4` for the supplied synthetic demonstration. Then follow
+4. Preview the entire library locally using the procedure below. Then follow
    the Pi setup procedure to install automatic looping playback.
 
 The prepare command prints the output directory. Check prints JSON. Order prints
 one clip ID per line. Preparation and playback diagnostics go to stderr.
+
+For sources with black borders already baked into the video, add a `crop`
+rectangle to the cut before preparing. For example, `"crop": {"x": 0, "y": 86,
+"width": 1280, "height": 548}` selects the active picture of a 1280×720 source.
+Coordinates are source pixels; the rectangle must stay within the source.
+Inspect bright scenes to distinguish borders from dark footage. The selected
+picture then scales and center-crops to fill 4:3, which can trim titles and
+subjects near the edges. Rebuild older letterboxed libraries into a new directory
+to apply this framing; fullscreen playback alone cannot remove bars baked into files.
+
+# Local Sequence Preview
+
+The preview uses [mpv](https://mpv.io/) with the
+[CRT-Royale port for mpv](https://github.com/hhirtz/mpv-retro-shaders).
+It simulates a CRT display using a GPU shader, including scanlines, phosphor
+structure, and bloom. This is a display approximation; physical composite
+output, overscan, Pi decoding, audio latency, and VLC's file-change timing still
+require hardware testing. The shader runs only on the preparation computer.
+
+1. From the repository root, install the preview dependencies and cache the shader:
+
+   ```sh
+   just preview setup
+   ```
+
+   This installs mpv through Homebrew when missing and downloads a pinned,
+   SHA-256-verified shader into ignored `.cache/`. Go, just, and jq must already
+   be installed. On systems without Homebrew, install mpv through your package
+   manager first. Subsequent previews work offline using the cached shader.
+2. Use the existing prepared `library/`, or prepare sources into a new directory:
+
+   ```sh
+   just prepare examples/horror-trailers.json library-new
+   just media-check library-new
+   ```
+
+   Preparation requires the local source downloads described above. Existing
+   output directories are refused; do not rerun preparation against `library/`.
+3. Preview every clip once, in a freshly shuffled order:
+
+   ```sh
+   just preview
+   ```
+
+   The default library is `library/`. Its five horror trailers run for about
+   14 minutes 20 seconds. The preview plays the actual 4:3 prepared files,
+   including their baked-in static, reception noise, and normalized audio.
+   Space pauses, `f` toggles fullscreen, `<` / `>` change clips, arrow keys seek,
+   and `q` quits. The window closes when the sequence finishes.
+4. Compare the plain picture or specify a library, selection count, recent-history
+   window, and optional mpv flags:
+
+   ```sh
+   just preview plain
+   just preview run library-new 0 5 --fullscreen
+   just preview run library 20 2
+   ```
+
+   Count `0` selects exactly one round. A positive count runs that many selections
+   through the same scheduler as the Pi, including exclusions across rounds.
+   Each invocation generates a new shuffle. For an exact visual comparison,
+   reuse the generated playlist directly:
+
+   ```sh
+   mpv --no-config --playlist=bin/preview/sequence.m3u8
+   ```
+
+The playlist contains absolute file URLs and is local to this computer. Generate
+it without opening a player using `just preview playlist`. Decode a complete
+round without a window or audio using `just preview test`. `just --list
+--list-submodules` lists all commands, including `prepare`, `media-check`,
+`order`, and `play`. `just play` runs the actual VLC-controlled player and
+requires `cvlc` on PATH; on macOS pass `--vlc /Applications/VLC.app/Contents/MacOS/VLC`.
 
 # Options & Flags
 

@@ -4,7 +4,7 @@ description: Use when operating the pi-crt CLI.
 author: Alex Gorbatchev
 metadata:
   created_on: 2026-10-26 22:51
-  last_modified: 2026-10-26 23:20
+  last_modified: 2026-10-27 07:15
   status: current
 ---
 
@@ -45,6 +45,16 @@ Local paths are relative to MANIFEST. Group defaults to source; give snippets
 from the same film matching groups even when their source paths differ.
 Reject unknown JSON fields, duplicate IDs, missing tools and invalid cuts.
 
+Each cut may include `crop: {"x": 0, "y": 86, "width": 1280, "height": 548}`
+to remove borders baked into the source. Coordinates and dimensions are integers
+in source pixels. Require nonnegative x/y, positive width/height, and a rectangle
+wholly within the source. Apply this crop before scaling. Without it, use the
+whole source frame. Scale proportionally to cover 640x480, account for source
+pixel aspect ratio, then center-crop to square-pixel 4:3. Fill the entire screen
+without stretching or adding borders. Widescreen sources lose their sides;
+portrait sources lose their top and bottom. Existing prepared libraries must be
+prepared again into a new directory to receive the framing change.
+
 OUTPUT must not exist and its parent must exist. Render in a temporary sibling,
 then rename into OUTPUT after success. Failed preparation removes scratch.
 An abrupt kill may leave `.pi-crt-prepare-*` scratch in the parent.
@@ -53,7 +63,7 @@ yt-dlp ignores user config, downloads one item and remuxes to MKV. Prefer format
 up to 720p; accept unknown source resolution when the extractor cannot report it.
 Publicly accessible sources require no credentials; downloader failures are errors.
 Prepared files are 640x480 H.264 baseline level 3.0, yuv420p, mono AAC 48 kHz,
-letterboxed, with dynamic audio normalization, optional luma noise, and 0.4
+cropped to fill 4:3, with dynamic audio normalization, optional luma noise, and 0.4
 seconds of static at the beginning. NTSC is 30000/1001 fps; PAL is 25 fps.
 Write `clips/*.mp4` and `library.json`. Print OUTPUT to stdout; progress and
 external-tool diagnostics go to stderr.

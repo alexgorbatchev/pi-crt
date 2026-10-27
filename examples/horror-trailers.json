@@ -1,0 +1,42 @@
+{
+  "clips": [
+    {
+      "id": "psycho-1960",
+      "group": "psycho-1960",
+      "source": "../sources/horror-trailers/DTJQfFQ40lI.mp4",
+      "start": 0,
+      "end": 391.488435,
+      "crop": { "x": 168, "y": 0, "width": 946, "height": 720 }
+    },
+    {
+      "id": "the-exorcist-1973",
+      "group": "the-exorcist-1973",
+      "source": "../sources/horror-trailers/BU2eYAO31Cc.mp4",
+      "start": 0,
+      "end": 102.585760
+    },
+    {
+      "id": "halloween-1978",
+      "group": "halloween-1978",
+      "source": "../sources/horror-trailers/3JsrH8eUVOo.mp4",
+      "start": 0,
+      "end": 161.518005,
+      "crop": { "x": 0, "y": 86, "width": 1280, "height": 548 }
+    },
+    {
+      "id": "the-shining-1980",
+      "group": "the-shining-1980",
+      "source": "../sources/horror-trailers/S014oGZiSdI.mp4",
+      "start": 0,
+      "end": 87.841088,
+      "crop": { "x": 0, "y": 8, "width": 1280, "height": 704 }
+    },
+    {
+      "id": "a-nightmare-on-elm-street-1984",
+      "group": "a-nightmare-on-elm-street-1984",
+      "source": "../sources/horror-trailers/dCVh4lBfW-c.mp4",
+      "start": 0,
+      "end": 114.195737
+    }
+  ]
+}
